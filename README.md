@@ -31,8 +31,7 @@ By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, th
 ## **Installation**
 1. Install dependencies:
    ```bash
-   sudo apt update && sudo apt install -y python3-pip
-   python3 -m pip install --upgrade cryptography
+   pip install -r requirements.txt
    ```
 
 2. Clone the repository:
