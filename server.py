@@ -3,9 +3,9 @@
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
+from zstandard import ZstdCompressor, ZstdDecompressor
 from cryptography.hazmat.primitives import hashes
 from kyber_py.ml_kem import ML_KEM_1024
-from zstandard import ZstdDecompressor
 import argparse
 import socket
 
@@ -19,7 +19,7 @@ def chacha20_decrypt(data, key, nonce):
     decryptor = cipher.decryptor()
     return decryptor.update(data)
 
-def start_server(ip, port, compression):
+def start_server(ip, port):
     mlkem = ML_KEM_1024
     server_public_key, server_private_key = mlkem.keygen()
 
@@ -49,31 +49,30 @@ def start_server(ip, port, compression):
 
         while True:
             command = input("\n[Server] Enter command: ").strip()
+            command = ZstdCompressor().compress(command.encode("utf-8"))
+            encrypted_command = chacha20_encrypt(command, key, nonce)
+
             if command.lower() == "exit":
-                encrypted_command = chacha20_encrypt(command.encode("utf-8"), key, nonce)
                 client_socket.send(encrypted_command)
                 client_socket.close()
-                print("[*] Connection closed.")
                 break
-            encrypted_command = chacha20_encrypt(command.encode("utf-8"), key, nonce)
+
             client_socket.send(encrypted_command)
             encrypted_response = client_socket.recv(4096)
             if not encrypted_response:
                 break
+
             response = chacha20_decrypt(encrypted_response, key, nonce)
-            if compression:
-                response = ZstdDecompressor().decompress(response)
-            response = response.decode("utf-8")
+            response = ZstdDecompressor().decompress(response).decode("utf-8")
             print(f"\n[Client]: {response}")
+
     except Exception as e:
         print(f"[!] Error: {e}")
         client_socket.close()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--ip", required=True, help="IP address to bind to")
     parser.add_argument("-p", "--port", required=True, type=int, help="Port to bind to")
-    parser.add_argument("-c", "--compression", action="store_true", help="Enable compression")
     args = parser.parse_args()
-    start_server(args.ip, args.port, args.compression)
+    start_server(args.ip, args.port)
