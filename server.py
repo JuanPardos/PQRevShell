@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 
+import argparse
+import os
+import socket
+
+import requests
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from zstandard import ZstdCompressor, ZstdDecompressor
 from cryptography.hazmat.primitives import hashes
 from kyber_py.ml_kem import ML_KEM_1024
-import argparse
-import socket
+
+download_folder = "downloaded"
 
 def chacha20_encrypt(data, key, nonce):
     cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None, backend=default_backend())
@@ -49,13 +54,43 @@ def start_server(ip, port):
 
         while True:
             command = input("\n[Server] Enter command: ").strip()
-            command = ZstdCompressor().compress(command.encode("utf-8"))
-            encrypted_command = chacha20_encrypt(command, key, nonce)
+            compressed_command = ZstdCompressor().compress(command.encode("utf-8"))
+            encrypted_command = chacha20_encrypt(compressed_command, key, nonce)
 
             if command.lower() == "exit":
                 client_socket.send(encrypted_command)
                 client_socket.close()
                 break
+            elif command.lower() == "upload":
+                file_path = input("[Server] Enter file path to upload: ")
+                with open(file_path, "rb") as f:
+                    file_data = f.read()
+                compressed_file_data = ZstdCompressor().compress(file_data)
+                encrypted_file_data = chacha20_encrypt(compressed_file_data, key, nonce)
+                response = requests.post('http://' + client_address[0] + ':5000/upload', data=encrypted_file_data, headers={'Filename': file_path.split('/')[-1]})
+                if response.status_code == 200:
+                    print("[Server] File uploaded successfully.")
+                else:
+                    print(f"[Server] Failed to upload file: {response.json().get('error', 'Unknown error')}")
+                continue
+            elif command.lower() == "download":
+                file_name = input("[Server] Enter file name to download: ")
+                response = requests.post('http://' + client_address[0] + ':5000/download', headers={'Filename': file_name})
+                if response.status_code == 200:
+                    file_data = response.content
+                    decrypted_file_data = chacha20_decrypt(file_data, key, nonce)
+                    decompressed_file_data = ZstdDecompressor().decompress(decrypted_file_data)
+                    
+                    if not os.path.exists(download_folder):
+                        os.makedirs(download_folder)
+                        
+                    output_path = os.path.join(download_folder, file_name.split('/')[-1])
+                    with open(output_path, "wb") as f:
+                        f.write(decompressed_file_data)
+                    print("[Server] File downloaded successfully.")
+                else:
+                    print(f"[Server] Failed to download file: {response.json().get('error', 'Unknown error')}")
+                continue
 
             client_socket.send(encrypted_command)
             encrypted_response = client_socket.recv(4096)

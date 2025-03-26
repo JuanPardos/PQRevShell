@@ -9,7 +9,8 @@ By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, th
 ### **Key Features:**
 - **ML-KEM Key Exchange:** Post-Quantum Secure key exchange using ML-KEM to prevent Man-in-the-Middle (MITM) attacks.
 - **HKDF Key Derivation:** Derives a secure Chacha20 key and IV using HMAC-based Key Derivation Function (HKDF).
-- **Chacha20:** Encrypts all communication between the client and server.
+- **Chacha20 Encryption:** Encrypts all communication between the client and server.
+- **File exchange:** File upload/download from the client.
 - **Client-Server Architecture:** Reverse shell functionality with encrypted command execution.
 - **Resistance to MITM:** ECDH ensures that even if an attacker intercepts the communication, they cannot decrypt the data.
 - **Bypass of IDS/IPS/SIEM:** Chacha20 encryption hides the command and control traffic, making it difficult to detect by network monitoring systems.
@@ -40,7 +41,7 @@ By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, th
    cd PQRevShell
    ```
 
-3. Make the scripts executable:
+3. Make the scripts executable (Optional):
    ```bash
    chmod +x client.py server.py
    ```
