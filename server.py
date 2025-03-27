@@ -4,15 +4,60 @@ import argparse
 import os
 import socket
 
-import requests
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from zstandard import ZstdCompressor, ZstdDecompressor
 from cryptography.hazmat.primitives import hashes
+from flask import Flask, jsonify, request
 from kyber_py.ml_kem import ML_KEM_1024
+import threading
 
-download_folder = "downloaded"
+key = None
+nonce = None
+
+downloads_folder = "downloads"
+
+app = Flask(__name__)
+
+def run_flask():
+    app.run(host='0.0.0.0', port=5000)
+
+@app.route('/d', methods=['POST'])
+def download():
+    data = request.get_data()
+    desencrypted_data = chacha20_decrypt(data, key, nonce)
+    decompressed_data = ZstdDecompressor().decompress(desencrypted_data)
+
+    if not decompressed_data:
+        return jsonify({"error": "No data received"}), 400
+    filename = request.headers.get('Filename')
+    try:
+        if not os.path.exists(downloads_folder):
+            os.makedirs(downloads_folder)
+                        
+        output_path = os.path.join(downloads_folder, filename.split('/')[-1])
+        with open(output_path, "wb") as f:
+            f.write(decompressed_data)
+        print("[Server] File downloaded successfully.")
+        return jsonify({"message": "File downloaded successfully."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/u', methods=['POST'])
+def upload():
+    filename = request.headers.get('Filename')
+    if not filename:
+        return jsonify({"error": "Filename is missing"}), 400
+    try:
+        with open(filename, "rb") as f:
+            file_data = f.read()
+        file_compressed = ZstdCompressor().compress(file_data)
+        file_encrypted = chacha20_encrypt(file_compressed, key, nonce)
+        print("[Server] File uploaded successfully.")
+        return file_encrypted
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def chacha20_encrypt(data, key, nonce):
     cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None, backend=default_backend())
@@ -25,6 +70,8 @@ def chacha20_decrypt(data, key, nonce):
     return decryptor.update(data)
 
 def start_server(ip, port):
+    global key, nonce
+
     mlkem = ML_KEM_1024
     server_public_key, server_private_key = mlkem.keygen()
 
@@ -61,39 +108,18 @@ def start_server(ip, port):
                 client_socket.send(encrypted_command)
                 client_socket.close()
                 break
+            elif command.lower() == "download":
+                file_path = input("[Server] Enter file path to download: ")
+                compressed_command = ZstdCompressor().compress(b'-download ' + file_path.encode("utf-8"))
+                encrypted_command = chacha20_encrypt(compressed_command, key, nonce)
             elif command.lower() == "upload":
                 file_path = input("[Server] Enter file path to upload: ")
-                with open(file_path, "rb") as f:
-                    file_data = f.read()
-                compressed_file_data = ZstdCompressor().compress(file_data)
-                encrypted_file_data = chacha20_encrypt(compressed_file_data, key, nonce)
-                response = requests.post('http://' + client_address[0] + ':5000/upload', data=encrypted_file_data, headers={'Filename': file_path.split('/')[-1]})
-                if response.status_code == 200:
-                    print("[Server] File uploaded successfully.")
-                else:
-                    print(f"[Server] Failed to upload file: {response.json().get('error', 'Unknown error')}")
-                continue
-            elif command.lower() == "download":
-                file_name = input("[Server] Enter file name to download: ")
-                response = requests.post('http://' + client_address[0] + ':5000/download', headers={'Filename': file_name})
-                if response.status_code == 200:
-                    file_data = response.content
-                    decrypted_file_data = chacha20_decrypt(file_data, key, nonce)
-                    decompressed_file_data = ZstdDecompressor().decompress(decrypted_file_data)
-                    
-                    if not os.path.exists(download_folder):
-                        os.makedirs(download_folder)
-                        
-                    output_path = os.path.join(download_folder, file_name.split('/')[-1])
-                    with open(output_path, "wb") as f:
-                        f.write(decompressed_file_data)
-                    print("[Server] File downloaded successfully.")
-                else:
-                    print(f"[Server] Failed to download file: {response.json().get('error', 'Unknown error')}")
-                continue
+                compressed_command = ZstdCompressor().compress(b'-upload ' + file_path.encode("utf-8"))
+                encrypted_command = chacha20_encrypt(compressed_command, key, nonce)
 
             client_socket.send(encrypted_command)
             encrypted_response = client_socket.recv(4096)
+
             if not encrypted_response:
                 break
 
@@ -110,4 +136,8 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--ip", required=True, help="IP address to bind to")
     parser.add_argument("-p", "--port", required=True, type=int, help="Port to bind to")
     args = parser.parse_args()
+
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
     start_server(args.ip, args.port)

