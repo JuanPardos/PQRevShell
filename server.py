@@ -15,30 +15,29 @@ import threading
 
 key = None
 nonce = None
-
 downloads_folder = "downloads"
+ip = '0.0.0.0' # Listen on all interfaces
 
-app = Flask(__name__)
+app = Flask("File exchange server")
 
-def run_flask():
-    app.run(host='0.0.0.0', port=5000)
+def run_flask(port):
+    app.run(ip, port)
 
 @app.route('/d', methods=['POST'])
 def download():
-    data = request.get_data()
-    desencrypted_data = chacha20_decrypt(data, key, nonce)
-    decompressed_data = ZstdDecompressor().decompress(desencrypted_data)
+    data = decrypt(request.get_data())
 
-    if not decompressed_data:
+    if not data:
         return jsonify({"error": "No data received"}), 400
     filename = request.headers.get('Filename')
+
     try:
         if not os.path.exists(downloads_folder):
             os.makedirs(downloads_folder)
                         
-        output_path = os.path.join(downloads_folder, filename.split('/')[-1])
+        output_path = os.path.join(downloads_folder, os.path.basename(filename))
         with open(output_path, "wb") as f:
-            f.write(decompressed_data)
+            f.write(data)
         print("[Server] File downloaded successfully.")
         return jsonify({"message": "File downloaded successfully."}), 200
     except Exception as e:
@@ -51,25 +50,24 @@ def upload():
         return jsonify({"error": "Filename is missing"}), 400
     try:
         with open(filename, "rb") as f:
-            file_data = f.read()
-        file_compressed = ZstdCompressor().compress(file_data)
-        file_encrypted = chacha20_encrypt(file_compressed, key, nonce)
+            data = f.read()
+        file = encrypt(ZstdCompressor().compress(data))
         print("[Server] File uploaded successfully.")
-        return file_encrypted
+        return file
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def chacha20_encrypt(data, key, nonce):
+def encrypt(data):
     cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None, backend=default_backend())
     encryptor = cipher.encryptor()
     return encryptor.update(data)
 
-def chacha20_decrypt(data, key, nonce):
+def decrypt(data):
     cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None, backend=default_backend())
     decryptor = cipher.decryptor()
     return decryptor.update(data)
 
-def start_server(ip, port):
+def start_server(port):
     global key, nonce
 
     mlkem = ML_KEM_1024
@@ -83,7 +81,7 @@ def start_server(ip, port):
     print(f"[*] Connection established with {client_address}")
 
     try:
-        client_socket.send(server_public_key)
+        client_socket.sendall(server_public_key)
 
         client_public_key_bytes = client_socket.recv(4096)
         shared_key = mlkem.decaps(server_private_key, client_public_key_bytes)
@@ -102,28 +100,28 @@ def start_server(ip, port):
         while True:
             command = input("\n[Server] Enter command: ").strip()
             compressed_command = ZstdCompressor().compress(command.encode("utf-8"))
-            encrypted_command = chacha20_encrypt(compressed_command, key, nonce)
+            encrypted_command = encrypt(compressed_command)
 
             if command.lower() == "exit":
-                client_socket.send(encrypted_command)
+                client_socket.sendall(encrypted_command)
                 client_socket.close()
                 break
             elif command.lower() == "download":
                 file_path = input("[Server] Enter file path to download: ")
                 compressed_command = ZstdCompressor().compress(b'-download ' + file_path.encode("utf-8"))
-                encrypted_command = chacha20_encrypt(compressed_command, key, nonce)
+                encrypted_command = encrypt(compressed_command)
             elif command.lower() == "upload":
                 file_path = input("[Server] Enter file path to upload: ")
                 compressed_command = ZstdCompressor().compress(b'-upload ' + file_path.encode("utf-8"))
-                encrypted_command = chacha20_encrypt(compressed_command, key, nonce)
+                encrypted_command = encrypt(compressed_command)
 
-            client_socket.send(encrypted_command)
+            client_socket.sendall(encrypted_command)
             encrypted_response = client_socket.recv(4096)
 
             if not encrypted_response:
                 break
 
-            response = chacha20_decrypt(encrypted_response, key, nonce)
+            response = decrypt(encrypted_response)
             response = ZstdDecompressor().decompress(response).decode("utf-8")
             print(f"\n[Client]: {response}")
 
@@ -133,11 +131,10 @@ def start_server(ip, port):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--ip", required=True, help="IP address to bind to")
-    parser.add_argument("-p", "--port", required=True, type=int, help="Port to bind to")
-    args = parser.parse_args()
+    parser.add_argument("-p", "--port", type=int, default=5050, help="Port to bind (default: 5050)")
+    arguments = parser.parse_args()
 
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread = threading.Thread(target=run_flask, args=(arguments.port + 1,), daemon=True)
     flask_thread.start()
 
-    start_server(args.ip, args.port)
+    start_server(arguments.port)
