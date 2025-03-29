@@ -18,7 +18,7 @@ nonce = None
 downloads_folder = "downloads"
 ip = '0.0.0.0' # Listen on all interfaces
 
-app = Flask("File exchange server")
+app = Flask("File server")
 
 def run_flask(port):
     app.run(ip, port)
