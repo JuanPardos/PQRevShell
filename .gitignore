@@ -13,3 +13,4 @@ dist/client.exe
 dist/install.exe
 dist/install.py
 dist/client.py
+*.zst

